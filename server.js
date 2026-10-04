@@ -11,12 +11,40 @@ const WORKER_BASE_URL = (
 
 app.use(express.json({ limit: "150kb" }));
 
+const ALLOWED_PATHS = new Set([
+  "/v1/health",
+  "/v1/catalog",
+  "/v1/admin/catalog",
+  "/v1/reserve-stock",
+  "/v1/admin/images/imgbb",
+]);
+
+// CORS y preflight sin utilizar comodines incompatibles con Express 5.
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Device-Id, X-Store-Id"
+  );
+  res.setHeader("Access-Control-Max-Age", "86400");
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
+  next();
+});
+
 app.get("/", (req, res) => {
   res.json({
     ok: true,
     gateway: "MiTienda Gateway",
     version: "1.0.0",
-    status: "online"
+    status: "online",
   });
 });
 
@@ -25,34 +53,19 @@ app.get("/gateway-health", (req, res) => {
     ok: true,
     gateway: "MiTienda Gateway",
     workerConfigured: Boolean(WORKER_BASE_URL),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-const ALLOWED_PATHS = new Set([
-  "/v1/health",
-  "/v1/catalog",
-  "/v1/admin/catalog",
-  "/v1/reserve-stock",
-  "/v1/admin/images/imgbb"
-]);
-
-app.options("*", (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Device-Id, X-Store-Id"
-  );
-  return res.status(204).end();
-});
-
-app.all("/v1/*", async (req, res) => {
+// Express 5: el wildcard debe tener nombre.
+app.all("/v1/{*splat}", async (req, res) => {
   try {
-    if (!ALLOWED_PATHS.has(req.path)) {
+    const path = req.path;
+
+    if (!ALLOWED_PATHS.has(path)) {
       return res.status(404).json({
         ok: false,
-        error: "ROUTE_NOT_ALLOWED"
+        error: "ROUTE_NOT_ALLOWED",
       });
     }
 
@@ -64,7 +77,7 @@ app.all("/v1/*", async (req, res) => {
 
     const headers = {
       Accept: req.get("Accept") || "application/json",
-      "User-Agent": "MiTienda-Gateway/1.0"
+      "User-Agent": "MiTienda-Gateway/1.0",
     };
 
     const authorization = req.get("Authorization");
@@ -86,13 +99,16 @@ app.all("/v1/*", async (req, res) => {
     const options = {
       method: req.method,
       headers,
-      redirect: "follow"
+      redirect: "follow",
     };
 
     if (req.method !== "GET" && req.method !== "HEAD") {
       headers["Content-Type"] = "application/json";
+
       options.body = JSON.stringify(
-        req.body && typeof req.body === "object" ? req.body : {}
+        req.body && typeof req.body === "object"
+          ? req.body
+          : {}
       );
     }
 
@@ -101,6 +117,7 @@ app.all("/v1/*", async (req, res) => {
     const body = await response.text();
 
     res.status(response.status);
+
     res.setHeader(
       "Content-Type",
       response.headers.get("content-type") ||
@@ -114,7 +131,7 @@ app.all("/v1/*", async (req, res) => {
     return res.status(502).json({
       ok: false,
       error: "GATEWAY_UPSTREAM_ERROR",
-      message: String(error?.message || error)
+      message: String(error?.message || error),
     });
   }
 });
