@@ -8,7 +8,7 @@ const WORKER_BASE_URL = String(
 // The Worker accepts at most 13.5 million Base64 characters. 18 MiB leaves
 // enough room for JSON framing while rejecting unbounded upload requests.
 const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "18mb";
-const GATEWAY_VERSION = "1.2.0";
+const GATEWAY_VERSION = "1.3.0";
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -45,6 +45,7 @@ app.get("/health", health);
 const allowedRoutes = new Set([
   "GET /v1/health",
   "GET /v1/catalog",
+  "POST /v1/license/validate",
   "PUT /v1/admin/catalog",
   "POST /v1/reserve-stock",
   "POST /v1/admin/images/imgbb",
